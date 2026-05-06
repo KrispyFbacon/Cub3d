@@ -1,0 +1,104 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   raycasting.c                                       :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: mmiguelo <mmiguelo@student.42porto.com>    +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/08/13 13:00:45 by mmiguelo          #+#    #+#             */
+/*   Updated: 2025/08/13 13:00:45 by mmiguelo         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
+#include "cub3D_bonus.h"
+
+void	render_frame(t_data *data)
+{
+	int			x;
+
+	update_flicker(data);
+	update_all_doors(data);
+	update_fps(data);
+	clear_image(&data->image, BG);
+	if (data->indoor == false)
+		put_fc(data);
+	x = 0;
+	while (x < WIN_WIDTH)
+		render_column(data, x++);
+	if (data->indoor == true)
+		render_fc(data, &data->ray.fc);
+	update_global_light(data);
+	draw_flashlight_overlay(data);
+	update_time_of_day(data);
+	render_minimap(data);
+	mlx_put_image_to_window(data->mlx, data->win, data->image.img, 0, 0);
+	render_full_door_map(data);
+	render_fps(data);
+	render_cycle(data);
+	mlx_string_put(data->mlx, data->win, WIN_WIDTH / 2, WIN_HEIGHT / 2,
+		0xFFFFFF, "+");
+}
+
+void	calculate_variables(t_player *player, t_ray *ray, int x)
+{
+	ray->pos.x = (int)player->x;
+	ray->pos.y = (int)player->y;
+	ray->cam.screen_x = 2 * x / (double)WIN_WIDTH - 1;
+	ray->dir.x = player->dir.x + player->plane.x * ray->cam.screen_x;
+	ray->dir.y = player->dir.y + player->plane.y * ray->cam.screen_x;
+	if (ray->dir.x == 0)
+		ray->step.delta_dist_x = 1e30;
+	else
+		ray->step.delta_dist_x = fabs(1 / ray->dir.x);
+	if (ray->dir.y == 0)
+		ray->step.delta_dist_y = 1e30;
+	else
+		ray->step.delta_dist_y = fabs(1 / ray->dir.y);
+	calculate_variables2(ray, player->x, player->y);
+}
+
+void	calculate_variables2(t_ray *ray, double player_x, double player_y)
+{
+	if (ray->dir.x < 0)
+	{
+		ray->step.x = -1;
+		ray->step.side_dist_x = (player_x - ray->pos.x)
+			* ray->step.delta_dist_x;
+	}
+	else
+	{
+		ray->step.x = 1;
+		ray->step.side_dist_x = (ray->pos.x + 1.0 - player_x)
+			* ray->step.delta_dist_x;
+	}
+	if (ray->dir.y < 0)
+	{
+		ray->step.y = -1;
+		ray->step.side_dist_y = (player_y - ray->pos.y)
+			* ray->step.delta_dist_y;
+	}
+	else
+	{
+		ray->step.y = 1;
+		ray->step.side_dist_y = (ray->pos.y + 1.0 - player_y)
+			* ray->step.delta_dist_y;
+	}
+}
+
+void	calculate_perpwalldist(t_ray *ray, t_draw *draw)
+{
+	int	pitch_offset;
+
+	if (draw->side == 0)
+		draw->perpwalldist = ray->step.side_dist_x - ray->step.delta_dist_x;
+	else
+		draw->perpwalldist = ray->step.side_dist_y - ray->step.delta_dist_y;
+	draw->line_height = (int)(WIN_HEIGHT / draw->perpwalldist);
+	pitch_offset = (int)((ray->cam.height - 0.5) * WIN_HEIGHT);
+	draw->start = -draw->line_height / 2 + WIN_HEIGHT / 2 + pitch_offset;
+	draw->end = draw->line_height / 2 + WIN_HEIGHT / 2 + pitch_offset;
+	if (draw->end >= WIN_HEIGHT)
+		draw->end = WIN_HEIGHT - 1;
+	if (draw->start < 0)
+		draw->start = 0;
+}
